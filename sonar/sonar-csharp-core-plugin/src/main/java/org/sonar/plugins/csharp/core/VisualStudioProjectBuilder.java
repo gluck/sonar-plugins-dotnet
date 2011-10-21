@@ -21,10 +21,14 @@ package org.sonar.plugins.csharp.core;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Properties;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,7 +83,7 @@ public class VisualStudioProjectBuilder extends ProjectBuilder {
       retrieveMicrosoftWindowsEnvironmentConfig();
 
       // Then create the Visual Studio Solution object from the ".sln" file
-      createVisualStudioSolution(root.getBaseDir());
+      createVisualStudioProject(root.getBaseDir());
 
       // And finally create the Sonar projects definition
       createMultiProjectStructure(root);
@@ -155,11 +159,58 @@ public class VisualStudioProjectBuilder extends ProjectBuilder {
     microsoftWindowsEnvironment.setSilverlightDirectory(silverlightDirectory);
   }
 
-  private void createVisualStudioSolution(File baseDir) {
+  private void createVisualStudioProject(File baseDir) {
     File slnFile = findSlnFile(baseDir);
-    if (slnFile == null) {
-      throw new SonarException("No valid '.sln' file could be found. Please read the previous log messages to know more.");
+    if (slnFile != null) {
+      createFromVisualStudioSolution(slnFile);
+    } else {
+      String projectFilePath = configuration.getString(CSharpConstants.PROJECT_FILE_KEY, CSharpConstants.PROJECT_FILE_DEFVALUE);
+      if (StringUtils.isEmpty(projectFilePath)) {
+        LOG.info("No '.sln' file found or specified: trying to find one...");
+        slnFile = searchForSlnFile(baseDir);
+        if (slnFile == null) {
+          throw new SonarException("No valid '.sln' file could be found. Please read the previous log messages to know more.");
+        } else {
+          createFromVisualStudioSolution(slnFile);
+        }
+      } else {
+        String testProjectFilePath = configuration.getString(CSharpConstants.TEST_PROJECT_FILE_KEY, CSharpConstants.TEST_PROJECT_FILE_DEFVALUE);
+        File projectFile = findFile(baseDir, projectFilePath);
+        if (projectFile == null) {
+          throw new SonarException("No valid project file could be found. Please read the previous log messages to know more.");
+        }
+        createFromVisualStudioProjects(projectFile, findFile(baseDir, testProjectFilePath));
+      }
     }
+  }
+
+  private void createFromVisualStudioProjects(File projectFile, File testProjectFile) {
+    LOG.info("The following project file has been found and will be used: " + projectFile.getAbsolutePath());
+    if (testProjectFile != null) {
+      LOG.info("The following test project file has been found and will be used: " + testProjectFile.getAbsolutePath());
+    }
+
+    try {
+      VisualStudioSolution solution;
+      ModelFactory.setTestProjectNamePattern(configuration.getString(CSharpConstants.TEST_PROJET_PATTERN_KEY,
+          CSharpConstants.TEST_PROJET_PATTERN_DEFVALUE));
+      List<VisualStudioProject> projects = new ArrayList<VisualStudioProject>();
+      List<String> buildConfigurations = Arrays.asList("Debug", "Release");
+      projects.add(ModelFactory.getProject(projectFile, FilenameUtils.getBaseName(projectFile.getName()), buildConfigurations));
+      if (testProjectFile != null) {
+          VisualStudioProject project = ModelFactory.getProject(testProjectFile, FilenameUtils.getBaseName(testProjectFile.getName()), buildConfigurations);
+          projects.add(project);
+      }
+      solution = new VisualStudioSolution(projectFile, projects);
+      microsoftWindowsEnvironment.setCurrentSolution(solution);
+    } catch (IOException e) {
+      throw new SonarException("Error occured while reading Visual Studio files.", e);
+    } catch (DotNetToolsException e) {
+      throw new SonarException("Error occured while reading Visual Studio files.", e);
+    }
+  }
+
+  private void createFromVisualStudioSolution(File slnFile) {
     LOG.info("The following 'sln' file has been found and will be used: " + slnFile.getAbsolutePath());
 
     try {
@@ -176,17 +227,27 @@ public class VisualStudioProjectBuilder extends ProjectBuilder {
 
   private File findSlnFile(File baseDir) {
     String slnFilePath = configuration.getString(CSharpConstants.SOLUTION_FILE_KEY, CSharpConstants.SOLUTION_FILE_DEFVALUE);
-    final File slnFile;
-    if (StringUtils.isEmpty(slnFilePath)) {
-      LOG.info("No '.sln' file found or specified: trying to find one...");
-      slnFile = searchForSlnFile(baseDir);
-    } else {
-      final File confSlnFile = new File(baseDir, slnFilePath);
+    File slnFile = findFile(baseDir, slnFilePath);
+    if (slnFile == null && !StringUtils.isEmpty(slnFilePath)) {
+      throw new SonarException("No valid '.sln' file could be found. Please read the previous log messages to know more.");
+    }
+    return slnFile;
+  }
+
+  private File findFile(File baseDir, String path) {
+    File slnFile = null;
+    if (!StringUtils.isEmpty(path)) {
+      File confSlnFile = new File(path);
       if (confSlnFile.isFile()) {
         slnFile = confSlnFile;
       } else {
-        slnFile = null;
-        LOG.warn("The specified '.sln' path does not point to an existing file: " + confSlnFile.getAbsolutePath());
+        confSlnFile = new File(baseDir, path);
+        if (confSlnFile.isFile()) {
+          slnFile = confSlnFile;
+        } else {
+          slnFile = null;
+          LOG.warn("The specified path does not point to an existing file: " + confSlnFile.getAbsolutePath());
+        }
       }
     }
     return slnFile;

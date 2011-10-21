@@ -73,6 +73,12 @@ public final class CSharpConstants {
   public static final String SOLUTION_FILE_KEY = "sonar.dotnet.visualstudio.solution.file";
   public static final String SOLUTION_FILE_DEFVALUE = "";
 
+  public static final String PROJECT_FILE_KEY = "sonar.dotnet.visualstudio.project.file";
+  public static final String PROJECT_FILE_DEFVALUE = "";
+
+  public static final String TEST_PROJECT_FILE_KEY = "sonar.dotnet.visualstudio.test.project.file";
+  public static final String TEST_PROJECT_FILE_DEFVALUE = "";
+
   public static final String EXCLUDE_GENERATED_CODE_KEY = "sonar.dotnet.excludeGeneratedCode";
   public static final boolean EXCLUDE_GENERATED_CODE_DEFVALUE = true;
 
