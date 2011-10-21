@@ -70,7 +70,7 @@ public class TestReportSensor extends AbstractTestCSharpSensor {
 
   @Override
   public void analyse(Project project, SensorContext context) {
-    File testReportFile = findTestReportToAnalyse();
+    File testReportFile = findTestReportToAnalyse(project);
     if (testReportFile == null) {
       return;
     }
@@ -83,13 +83,16 @@ public class TestReportSensor extends AbstractTestCSharpSensor {
     collect(project, testReportFile, context);
   }
 
-  protected File findTestReportToAnalyse() {
+  protected File findTestReportToAnalyse(Project project) {
     File reportFile = null;
     File solutionDir = getVSSolution().getSolutionDir();
     String reportDefaultPath = getMicrosoftWindowsEnvironment().getWorkingDirectory() + "/" + GallioConstants.GALLIO_REPORT_XML;
     if (MODE_REUSE_REPORT.equals(executionMode)) {
       String reportPath = configuration.getString(GallioConstants.REPORTS_PATH_KEY, reportDefaultPath);
-      reportFile = FileFinder.browse(solutionDir, reportPath);
+      reportFile = FileFinder.browse(getVSProject(project).getDirectory(), reportPath);
+      if (!reportFile.isFile()) {
+          reportFile = FileFinder.browse(solutionDir, reportPath);
+      }
       LOG.info("Reusing Gallio report: " + reportFile);
     } else {
       if ( !getMicrosoftWindowsEnvironment().isTestExecutionDone()) {

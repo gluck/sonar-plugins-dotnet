@@ -88,12 +88,15 @@ public class FxCopSensor extends AbstractCilRuleBasedCSharpSensor {
 
     fxCopResultParser.setEncoding(fileSystem.getSourceCharset());
 
-    final File reportFile;
+    File reportFile;
     File projectDir = project.getFileSystem().getBasedir();
     String reportDefaultPath = getMicrosoftWindowsEnvironment().getWorkingDirectory() + "/" + FxCopConstants.FXCOP_REPORT_XML;
     if (MODE_REUSE_REPORT.equalsIgnoreCase(executionMode)) {
       String reportPath = configuration.getString(FxCopConstants.REPORTS_PATH_KEY, reportDefaultPath);
-      reportFile = FileFinder.browse(projectDir, reportPath);
+      reportFile = FileFinder.browse(getVSProject(project).getDirectory(), reportPath);
+      if (!reportFile.isFile()) {
+          reportFile = FileFinder.browse(projectDir, reportPath);
+      }
       LOG.info("Reusing FxCop report: " + reportFile);
     } else {
       // prepare config file for FxCop
